@@ -3,7 +3,6 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-# Configuración de la página
 st.set_page_config(
     page_title="Asistente Virtual ATMCE",
     page_icon="📡",
@@ -13,14 +12,12 @@ st.set_page_config(
 st.title("📡 Asistente Virtual ATMCE")
 st.caption("Academia Militar de Comunicaciones y Electrónica — Apoyo Académico con IA")
 
-# Obtener la clave API desde los Secrets de Streamlit o variables de entorno
 api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
 
 if not api_key:
     st.error("⚠️ Falta configurar `GEMINI_API_KEY` en los Secrets de Streamlit.")
     st.stop()
 
-# Inicializar cliente de Gemini
 client = genai.Client(api_key=api_key)
 
 SYSTEM_PROMPT = (
@@ -31,7 +28,6 @@ SYSTEM_PROMPT = (
     "Cuando expliques ejercicios o conceptos técnicos, hazlo paso a paso y con ejemplos prácticos."
 )
 
-# Inicializar historial de conversación en la sesión
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -40,7 +36,6 @@ if "messages" not in st.session_state:
         }
     ]
 
-# Botón en barra lateral para limpiar chat
 with st.sidebar:
     st.header("Opciones")
     if st.button("🗑️ Limpiar conversación"):
@@ -52,12 +47,10 @@ with st.sidebar:
         ]
         st.rerun()
 
-# Mostrar mensajes previos
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Entrada de texto del usuario
 if prompt := st.chat_input("Escribe tu consulta académica aquí..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -66,7 +59,6 @@ if prompt := st.chat_input("Escribe tu consulta académica aquí..."):
     with st.chat_message("assistant"):
         with st.spinner("Procesando consulta..."):
             try:
-                # Construir historial para mantener contexto de la charla
                 contenido_historial = []
                 for m in st.session_state.messages:
                     rol = "user" if m["role"] == "user" else "model"
