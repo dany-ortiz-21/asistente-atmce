@@ -1,37 +1,94 @@
 import os
-import gradio as gr
+import streamlit as st
 from google import genai
+from google.genai import types
 
-api_key = os.environ.get("GEMINI_API_KEY")
+# Configuración de la página
+st.set_page_config(
+    page_title="Asistente Virtual ATMCE",
+    page_icon="📡",
+    layout="centered"
+)
+
+st.title("📡 Asistente Virtual ATMCE")
+st.caption("Academia Militar de Comunicaciones y Electrónica — Apoyo Académico con IA")
+
+# Obtener la clave API desde los Secrets de Streamlit o variables de entorno
+api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
+
+if not api_key:
+    st.error("⚠️ Falta configurar `GEMINI_API_KEY` en los Secrets de Streamlit.")
+    st.stop()
+
+# Inicializar cliente de Gemini
 client = genai.Client(api_key=api_key)
 
 SYSTEM_PROMPT = (
-    "Eres un asistente virtual acad�mico de apoyo para cadetes y estudiantes "
-    "de la Academia Militar de Comunicaciones y Electr�nica (ATMCE). "
-    "Responde de forma clara, respetuosa y �til."
+    "Eres el Asistente Virtual Académico de la Academia Militar de Comunicaciones y Electrónica (ATMCE). "
+    "Tu objetivo es apoyar a cadetes, estudiantes e instructores en materias de telecomunicaciones, "
+    "electrónica, redes, sistemas de radio, matemáticas aplicadas, física y estudio académico general. "
+    "Responde siempre en español con tono respetuoso, disciplinado, claro, preciso y pedagógico. "
+    "Cuando expliques ejercicios o conceptos técnicos, hazlo paso a paso y con ejemplos prácticos."
 )
 
-def responder(message, history):
-    if not api_key:
-        return "Error: falta configurar la variable de entorno GEMINI_API_KEY."
+# Inicializar historial de conversación en la sesión
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "¡Bienvenido, cadete! Soy el Asistente Virtual de la ATMCE. ¿En qué tema de electrónica, comunicaciones o estudio te puedo apoyar hoy?"
+        }
+    ]
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=message,
-            config={
-                "system_instruction": SYSTEM_PROMPT,
-            },
-        )
-        return response.text or "No se recibi� respuesta del modelo."
-    except Exception as e:
-        return f"Ocurri� un error al consultar Gemini: {e}"
+# Botón en barra lateral para limpiar chat
+with st.sidebar:
+    st.header("Opciones")
+    if st.button("🗑️ Limpiar conversación"):
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "Conversación reiniciada. ¿En qué puedo ayudarte ahora?"
+            }
+        ]
+        st.rerun()
 
-demo = gr.ChatInterface(
-    fn=responder,
-    title="Asistente Virtual ATMCE",
-    description="Asistente acad�mico con Google Gemini para cadetes y estudiantes.",
-)
+# Mostrar mensajes previos
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+# Entrada de texto del usuario
+if prompt := st.chat_input("Escribe tu consulta académica aquí..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Procesando consulta..."):
+            try:
+                # Construir historial para mantener contexto de la charla
+                contenido_historial = []
+                for m in st.session_state.messages:
+                    rol = "user" if m["role"] == "user" else "model"
+                    contenido_historial.append(
+                        types.Content(
+                            role=rol,
+                            parts=[types.Part.from_text(text=m["content"])]
+                        )
+                    )
+
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contenido_historial,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=0.4,
+                    ),
+                )
+                respuesta_texto = response.text or "No se obtuvo respuesta del modelo."
+            except Exception as e:
+                respuesta_texto = f"Ocurrió un error al consultar Gemini: {e}"
+
+            st.markdown(respuesta_texto)
+
+    st.session_state.messages.append({"role": "assistant", "content": respuesta_texto})
